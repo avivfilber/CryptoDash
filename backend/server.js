@@ -12,7 +12,7 @@ const app = express();
 // ===== 2) CORS + JSON =====
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://<YOUR-VERCEL-DOMAIN>.vercel.app', // ← החלף/י בדומיין שלך מ-Vercel
+  'https://crypto-dash-one-theta.vercel.app', // ← החלף/י בדומיין שלך מ-Vercel
 ];
 app.use(cors({
   origin: (origin, cb) => {
