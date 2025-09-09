@@ -23,7 +23,8 @@ export default function Login(){
     e.preventDefault();
     setError('');
     try {
-      const { data } = await api.post('/auth/login', { email, password });
+      interface LoginResponse { token: string }
+      const { data } = await api.post<LoginResponse>('/auth/login', { email, password });
       if (data?.token) setAuthToken(data.token);
       nav('/');
     } catch (err: any) {

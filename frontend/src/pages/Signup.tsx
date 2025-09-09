@@ -22,7 +22,7 @@ export default function Signup(){
       await api.post('/auth/signup', { name, email, password });
 
       // התחבר אוטומטית כדי לקבל טוקן
-      const { data } = await api.post('/auth/login', { email, password });
+      const { data }: { data: { token: string } } = await api.post('/auth/login', { email, password });
       if (data?.token) setAuthToken(data.token);
 
       // המשך לאונבורדינג
