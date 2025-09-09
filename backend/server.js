@@ -3,12 +3,28 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://<YOUR-VERCEL-DOMAIN>.vercel.app', // ← החליפי בשם הדומיין שלך
+];
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://crypto-dash-one-theta.vercel.app'
-  ],
+  origin: (origin, cb) => {
+    // אפשר גם גישה מכל מקום בזמן בדיקות:
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
+      return cb(null, true);
+    }
+    cb(null, false);
+  },
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false, // לא משתמשים בקוקיז; הטוקן עובר ב-Authorization
 }));
+
+// אופציונלי: מענה מהיר ל-OPTIONS אם צריך
+app.options('*', cors());
 
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
