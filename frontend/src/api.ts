@@ -1,18 +1,26 @@
-// src/api.ts
-import axios from "axios";
-
-// Vite automatically provides types for import.meta.env in vite/client, so no need to redeclare ImportMeta or ImportMetaEnv.
-
-const base = (
-  (import.meta.env.VITE_API_URL as string | undefined) ||
-  "http://localhost:8080"
-).replace(/\/+$/, "");          // מוריד סלש-סיום
-
-console.log("[api] baseURL =", base); // עוזר לאבחון: צריך להופיע http://localhost:8080
+// fronted/src/api.ts
+import axios from 'axios';
 
 const api = axios.create({
-  baseURL: base,
-  timeout: 15000,
+  baseURL: import.meta.env.VITE_API_URL,
+  timeout: 8000
 });
+
+// טוקן התחלתי (אם נשמר בעבר)
+const t = localStorage.getItem('token');
+if (t) api.defaults.headers.common['Authorization'] = `Bearer ${t}`;
+
+// Interceptor לשגיאות הרשאה
+api.interceptors.response.use(
+  r => r,
+  err => {
+    if (err?.response?.status === 401) {
+      localStorage.removeItem('token');
+      // אופציונלי: הפניה לכניסה
+      // window.location.href = '/login';
+    }
+    return Promise.reject(err);
+  }
+);
 
 export default api;

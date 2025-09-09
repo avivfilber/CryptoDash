@@ -1,37 +1,35 @@
+// backend/src/routes/dashboard.js
 const express = require('express');
 const auth = require('../middleware/auth');
 const User = require('../models/User');
-const { getPrices } = require('../services/prices');
-const { getNews } = require('../services/news');
-const { getInsight } = require('../services/ai');
-const { getMeme } = require('../services/memes');
-
+const getPrices = require('../services/prices');
+const getNews = require('../services/news');
+const getAI = require('../services/ai');
+const getMeme = require('../services/memes');
 
 const router = express.Router();
+router.use(auth);
 
+const safe = async (fn, fallback) => {
+  try { return await fn(); } catch { return fallback; }
+};
 
-router.get('/', auth, async (req,res)=>{
-const user = await User.findById(req.userId);
-const prefs = user.preferences || { assets: ['bitcoin','ethereum'], investorType: 'HODLer', contentTypes: ['Market News','Charts','Social','Fun'] };
+router.get('/', async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id).lean();
+    const prefs = user?.preferences || { assets: ['bitcoin', 'ethereum'], investorType: 'HODLer', contentTypes: ['Market News','Charts','Social','Fun'] };
 
+    const [prices, news, ai, meme] = await Promise.all([
+      safe(() => getPrices(prefs.assets), []),
+      safe(() => getNews(prefs.contentTypes), []),
+      safe(() => getAI(prefs.investorType), { id: 'ai-fallback', text: 'No insight available.' }),
+      safe(() => getMeme(), { id: 'meme-fallback', title: 'No meme', imageUrl: '', link: '' })
+    ]);
 
-const [ prices, news, meme ] = await Promise.all([
-getPrices(prefs.assets).catch(()=>[]),
-getNews().catch(()=>[]),
-getMeme().catch(()=> null)
-]);
-
-
-const ai = await getInsight({ name: user.name || 'Investor', assets: prefs.assets, investorType: prefs.investorType });
-
-
-res.json({
-prices,
-news,
-ai: { id: 'ai-tip', text: ai },
-meme
+    return res.json({ prices, news, ai, meme });
+  } catch (e) {
+    next(e);
+  }
 });
-});
-
 
 module.exports = router;

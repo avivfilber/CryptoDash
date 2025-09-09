@@ -1,93 +1,70 @@
 // backend/server.js
 require('dotenv').config();
-
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const morgan = require('morgan');
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 
-// ===== 1) יצירת האפליקציה (חייב לפני app.use) =====
 const app = express();
 
-// ===== 2) CORS + JSON =====
-const allowedOrigins = [
+// --- Security & parsing ---
+app.use(helmet({ crossOriginResourcePolicy: false }));
+app.use(express.json({ limit: '1mb' }));
+app.use(morgan('tiny'));
+
+// --- CORS ---
+const allowed = [
   'http://localhost:5173',
-  'https://crypto-dash-one-theta.vercel.app', // דומיין ה-Vercel שלך
+  'http://localhost:5174',
+  'https://crypto-dash-one-theta.vercel.app'
 ];
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowed.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
+  credentials: false // עובדים עם Bearer token, לא cookies
+}));
 
-app.use((req, res, next) => {
-  const origin = req.headers.origin || '';
-  const isAllowed =
-    !origin ||
-    allowedOrigins.includes(origin) ||
-    /\.vercel\.app$/.test(origin); // מאפשר כל דומיין *.vercel.app
-
-  if (isAllowed) {
-    // חשוב: משקפים את המקור (לא *)
-    res.setHeader('Access-Control-Allow-Origin', origin || 'https://crypto-dash-one-theta.vercel.app');
-    res.setHeader('Vary', 'Origin');
-
-    // משקפים את המתודה והכותרות שהדפדפן ביקש ב-preflight
-    const reqMethod = req.header('Access-Control-Request-Method') || 'GET,POST,OPTIONS';
-    const reqHeaders = req.header('Access-Control-Request-Headers') || 'Content-Type, Authorization';
-
-    res.setHeader('Access-Control-Allow-Methods', reqMethod);
-    res.setHeader('Access-Control-Allow-Headers', reqHeaders);
-    res.setHeader('Access-Control-Max-Age', '86400'); // קאש ליום
+// --- Mongo ---
+(async () => {
+  if (!process.env.MONGO_URI) {
+    console.error('Missing MONGO_URI');
+    process.exit(1);
   }
-
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(204); // בלי גוף, עם ה-Headers שכבר שמנו
-  }
-
-  next();
+  await mongoose.connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 10_000
+  });
+  console.log('Mongo connected');
+})().catch(err => {
+  console.error('Mongo connect error', err);
+  process.exit(1);
 });
 
-app.use(express.json());
+// --- Rate limit ל-/auth ---
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
+app.use('/auth', authLimiter);
 
-// ===== 3) ראוטרים =====
-const authRoutes = require('./src/routes/auth.js');
-const prefsRoutes = require('./src/routes/prefs.js');
-const dashboardRoutes = require('./src/routes/dashboard.js');
-const voteRoutes = require('./src/routes/vote.js');
+// --- Routes ---
+app.use('/auth', require('./src/routes/auth'));
+app.use('/prefs', require('./src/routes/prefs'));
+app.use('/vote', require('./src/routes/vote'));
+app.use('/dashboard', require('./src/routes/dashboard'));
 
-app.use('/auth', authRoutes);
-app.use('/prefs', prefsRoutes);
-app.use('/dashboard', dashboardRoutes);
-app.use('/vote', voteRoutes);
+// --- Health ---
+app.get('/health', (_req, res) => res.json({ ok: true }));
 
-// בריאות
-app.get('/', (_req, res) => res.json({ ok: true, service: 'cryptodash-backend' }));
+// --- 404 ---
+app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
-// ===== 4) חיבור למסד =====
-async function connectDB() {
-  const uri = process.env.MONGODB_URI;
-  try {
-    if (!uri) throw new Error('Missing MONGODB_URI');
-    await mongoose.connect(uri, { dbName: 'cryptodash' });
-    console.log('✅ MongoDB connected');
-  } catch (err) {
-    console.warn('⚠️ Mongo connect failed, falling back to in-memory DB:', err?.codeName || err?.message);
-    const mem = await MongoMemoryServer.create();
-    const memUri = mem.getUri();
-    await mongoose.connect(memUri, { dbName: 'cryptodash' });
-    console.log('✅ In-memory MongoDB started at', memUri);
-    console.log('ℹ️ Dev mode: data resets when server restarts.');
-  }
-}
+// --- Error handler ---
+app.use((err, _req, res, _next) => {
+  console.error(err);
+  const status = err.status || 500;
+  res.status(status).json({ error: err.message || 'Server error' });
+});
 
-// ===== 5) הפעלת השרת =====
 const PORT = process.env.PORT || 8080;
-connectDB()
-  .then(() => {
-    app.listen(PORT, () => console.log(`API listening on :${PORT}`));
-  })
-  .catch((e) => {
-    console.error('Fatal DB init error:', e);
-    process.exit(1);
-  });
-
-// לוגים מועילים
-mongoose.connection.on('error', (e) => console.error('Mongoose connection error:', e?.message));
-mongoose.connection.on('connected', () => console.log('Mongoose connected'));
-mongoose.connection.on('disconnected', () => console.log('Mongoose disconnected'));
+app.listen(PORT, () => console.log(`API on :${PORT}`));
