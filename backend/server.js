@@ -12,17 +12,34 @@ const app = express();
 // ===== 2) CORS + JSON =====
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://crypto-dash-one-theta.vercel.app', // ← החלף/י בדומיין שלך מ-Vercel
+  'https://crypto-dash-one-theta.vercel.app', // 👈 הדומיין שלך ב-Vercel
 ];
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    if (allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) return cb(null, true);
-    return cb(null, false);
-  },
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+
+// CORS middleware
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  // אפשר גם לאפשר את כל תתי-הדומיינים של vercel:
+  const isAllowed =
+    !origin ||
+    allowedOrigins.includes(origin) ||
+    /\.vercel\.app$/.test(origin);
+
+  if (isAllowed) {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Vary', 'Origin'); // חשוב לפרוקסים/קאשינג
+    res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    // res.header('Access-Control-Allow-Credentials', 'false'); // אין צורך בקוקיז
+  }
+
+  // מענה מהיר ל-OPTIONS (preflight)
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+
 app.use(express.json());
 
 // (אופציונלי: לעזור ל-preflight)
