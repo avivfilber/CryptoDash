@@ -1,6 +1,5 @@
 // src/api.ts
 import axios from "axios";
-import "vite/client";
 
 // Vite automatically provides types for import.meta.env in vite/client, so no need to redeclare ImportMeta or ImportMetaEnv.
 
