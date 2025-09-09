@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import api from "../api";
 
 const COINS = ["bitcoin", "ethereum", "solana", "cardano"];
@@ -10,6 +10,12 @@ export default function Onboarding() {
   const [investorType, setInvestorType] = useState(TYPES[0]);
   const [contentTypes, setContentTypes] = useState<string[]>(CONTENT);
   const [saved, setSaved] = useState(false);
+
+  // טען טוקן מקומי אם יש
+  useEffect(() => {
+    const t = localStorage.getItem('token');
+    if (t) api.defaults.headers.common['Authorization'] = `Bearer ${t}`;
+  }, []);
 
   function toggle<T>(arr: T[], x: T) {
     return arr.includes(x) ? arr.filter((i) => i !== x) : [...arr, x];
@@ -27,8 +33,7 @@ export default function Onboarding() {
   return (
     <div className="card space-y-6">
       <h1 className="text-2xl font-bold">Tell us what you like</h1>
-      {/* ...UI... */}
-      {/* (ה־UI נשאר כמו אצלך) */}
+      {/* ...שאר ה־UI כמו שהיה... */}
       <div>
         <div className="label mb-2">Assets you follow</div>
         <div className="flex flex-wrap gap-2">
@@ -36,7 +41,9 @@ export default function Onboarding() {
             <button
               key={c}
               onClick={() => setAssets(toggle(assets, c))}
-              className={`px-3 py-2 rounded-xl border ${assets.includes(c) ? "bg-gray-900 text-white" : "bg-white"}`}
+              className={`px-3 py-2 rounded-xl border ${
+                assets.includes(c) ? "bg-gray-900 text-white" : "bg-white"
+              }`}
             >
               {c}
             </button>
@@ -49,7 +56,12 @@ export default function Onboarding() {
         <div className="flex gap-3 flex-wrap">
           {TYPES.map((t) => (
             <label key={t} className="flex items-center gap-2">
-              <input type="radio" name="itype" checked={investorType === t} onChange={() => setInvestorType(t)} />
+              <input
+                type="radio"
+                name="itype"
+                checked={investorType === t}
+                onChange={() => setInvestorType(t)}
+              />
               {t}
             </label>
           ))}
@@ -61,7 +73,11 @@ export default function Onboarding() {
         <div className="flex gap-3 flex-wrap">
           {CONTENT.map((c) => (
             <label key={c} className="flex items-center gap-2">
-              <input type="checkbox" checked={contentTypes.includes(c)} onChange={() => setContentTypes(toggle(contentTypes, c))} />
+              <input
+                type="checkbox"
+                checked={contentTypes.includes(c)}
+                onChange={() => setContentTypes(toggle(contentTypes, c))}
+              />
               {c}
             </label>
           ))}

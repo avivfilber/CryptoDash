@@ -1,48 +1,73 @@
-// backend/src/routes/auth.js
 const express = require('express');
-const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 
 const router = express.Router();
 
-function isEmail(x) {
-  return typeof x === 'string' && /\S+@\S+\.\S+/.test(x);
+function makeToken(userId) {
+  return jwt.sign({ userId }, process.env.JWT_SECRET || 'dev_secret', {
+    expiresIn: '7d',
+  });
 }
 
-router.post('/signup', async (req, res, next) => {
+// POST /auth/signup
+router.post('/signup', async (req, res) => {
   try {
     const { name, email, password } = req.body || {};
-    if (!name || !isEmail(email) || typeof password !== 'string' || password.length < 8) {
-      return res.status(400).json({ error: 'Invalid input' });
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Missing name, email or password' });
     }
-    const existing = await User.findOne({ email });
-    if (existing) return res.status(409).json({ error: 'Email already registered' });
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 chars' });
+    }
+
+    const exists = await User.findOne({ email: email.toLowerCase().trim() }).lean();
+    if (exists) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
 
     const hash = await bcrypt.hash(password, 10);
-    await User.create({ name, email, password: hash, preferences: {} });
-    return res.json({ ok: true });
-  } catch (e) {
-    next(e);
+    const user = await User.create({
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      password: hash,
+    });
+
+    return res.status(201).json({ ok: true, id: user._id });
+  } catch (err) {
+    console.error('Signup error:', err); // ← תראי את זה ב־terminal
+    // שגיאה ל־unique index
+    if (err && err.code === 11000) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+    return res.status(500).json({ error: 'Signup failed, server error' });
   }
 });
 
-router.post('/login', async (req, res, next) => {
+// POST /auth/login
+router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
-    if (!isEmail(email) || typeof password !== 'string') {
-      return res.status(400).json({ error: 'Invalid input' });
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Missing email or password' });
     }
-    const user = await User.findOne({ email });
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
     const ok = await bcrypt.compare(password, user.password);
-    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!ok) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    return res.json({ token, user: { id: String(user._id), name: user.name, email: user.email } });
-  } catch (e) {
-    next(e);
+    const token = makeToken(user._id.toString());
+    return res.json({ ok: true, token });
+  } catch (err) {
+    console.error('Login error:', err);
+    return res.status(500).json({ error: 'Login failed, server error' });
   }
 });
 

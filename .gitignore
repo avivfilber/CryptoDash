@@ -1,15 +1,16 @@
-# שורש + תתי־פרויקטים
 node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Builds / Dev
 dist/
 build/
-*.log
-npm-debug.log*
-pnpm-debug.log*
-.vscode/
-.DS_Store
-coverage/
+**/.cache/
+.vercel/
+.netlify/
 
-# קבצי סביבה (אל תשכחי להשאיר .env.example ב-git)
+# Env / secrets
+.env
 **/.env
-**/.env.* 
-!**/.env.example
